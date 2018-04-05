@@ -102,7 +102,8 @@ struct object *read(FILE *in)
 	char line_buf[MAX_LINE];
 	int line_index = 0;
 	int max = 0;
-	
+	enum obj_type type = OBJTYPE_MAX;
+
 	eat_space(in);
 
 	ch = fgetc(in);
@@ -114,20 +115,28 @@ struct object *read(FILE *in)
 	do {
 		ch = fgetc(in);
 
-		if (ch == ';') {
+		if (isdigit(ch)) {
+			line_buf[line_index++] = (char)ch;
+			type = OBJTYPE_FIXNUM;
+		} else if (ch == ';') {
 			eat_line(in);
 			break;
-		} else if (ch == '\n')
+		} else if (ch == '\n') {
 			break;
-
-		printf("get ch=%c\n", (char)ch);
-		line_buf[line_index++] = (char)ch;
+		} else {
+			/* something bad happens, clear input buffer */
+			eat_line(in);
+			type = OBJTYPE_MAX;
+			break;
+		}
 	} while (max++ < MAX_LINE);
 
 	line_buf[line_index] = 0;
 
-	printf("line=%s\n", line_buf);
-	return make_fixnum(negative, line_buf);
+	if (type == OBJTYPE_FIXNUM)
+		return make_fixnum(negative, line_buf);
+
+	return NULL;
 }
 
 int main(void)
