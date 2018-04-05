@@ -7,12 +7,14 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdlib.h>
 
 #define MAX_LINE 128
 
 
 enum obj_type {
 	OBJTYPE_FIXNUM = 0x1,
+	OBJTYPE_MAX,
 };
 
 struct object {
@@ -22,6 +24,30 @@ struct object {
 	};
 };
 
+
+struct object *new_object(enum obj_type type)
+{
+	struct object *obj;
+
+	if (type >= OBJTYPE_MAX)
+		return NULL;
+
+	obj = calloc(1, sizeof(*obj));
+	obj->type = type;
+	return obj;
+}
+
+struct object *make_fixnum(int negative, char *buf)
+{
+	struct object *obj = new_object(OBJTYPE_FIXNUM);
+	if (!obj)
+		return NULL;
+
+	obj->fixnum_value = strtol(buf, NULL, 10);
+	if (negative)
+		obj->fixnum_value = -obj->fixnum_value;
+	return obj;
+}
 
 struct object *eval(struct object *exp)
 {
@@ -97,8 +123,11 @@ struct object *read(FILE *in)
 		printf("get ch=%c\n", (char)ch);
 		line_buf[line_index++] = (char)ch;
 	} while (max++ < MAX_LINE);
-	
-	return NULL;
+
+	line_buf[line_index] = 0;
+
+	printf("line=%s\n", line_buf);
+	return make_fixnum(negative, line_buf);
 }
 
 int main(void)
