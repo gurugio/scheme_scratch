@@ -15,6 +15,7 @@
 enum obj_type {
 	OBJTYPE_FIXNUM = 0x1,
 	OBJTYPE_BOOLEAN,
+	OBJTYPE_CHAR,
 	OBJTYPE_MAX,
 };
 
@@ -23,6 +24,7 @@ struct object {
 	union {
 		long fixnum_value;
 		int bool_value;
+		char char_value;
 	};
 };
 
@@ -57,6 +59,32 @@ struct object *make_fixnum(char *buf)
 		return NULL;
 }
 
+struct object *make_char(char *buf)
+{
+	struct object *obj = NULL;
+	/* [0]='#', [1]='\' */
+	if (isalpha(buf[2])) {
+		obj = new_object(OBJTYPE_CHAR);
+		if (!obj)
+			return NULL;
+		if (!strncmp(&buf[2], "newline", 7)) {
+			/* later */
+		} else if (!strncmp(&buf[2], "space", 5)) {
+			/* later */
+		} else if (buf[3] == '\0') {
+			obj->char_value = buf[2];
+		} else {
+			free(obj);
+			obj = NULL;
+		}
+	} else if (buf[2] == '\n') {
+		/* later */
+	} else if (buf[2] == ' ') {
+		/* later */
+	}
+	return obj;
+}
+
 struct object *eval(struct object *exp)
 {
 	return exp;
@@ -80,6 +108,9 @@ void print(struct object *obj)
 			printf("#f\n");
 		else
 			printf("Error at handling boolean type\n");
+		break;
+	case OBJTYPE_CHAR:
+		printf("#\\%c", (char)obj->char_value);
 		break;
 	default:
 		fprintf(stderr, "Unknown type\n");
@@ -122,8 +153,10 @@ enum obj_type get_type(const char *token)
 	} else if (token[0] == '-' || token[0] == '+' || isdigit(token[0])) {
 		/* fixnum */
 		return OBJTYPE_FIXNUM;
+	} else if (token[0] == '#' && token[1] == '\\') {
+		return OBJTYPE_CHAR;
 	}
-	/* unknown type yet */
+	/* unknown type or not-implemented yet */
 	return OBJTYPE_MAX;
 }
 
@@ -169,6 +202,8 @@ struct object *read(FILE *in)
 		return make_fixnum(line_buf);
 	case OBJTYPE_BOOLEAN:
 		return get_boolean(line_buf);
+	case OBJTYPE_CHAR:
+		return make_char(line_buf);
 	}
 
 	return NULL;
