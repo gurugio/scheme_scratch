@@ -67,10 +67,10 @@ struct object *make_char(char *buf)
 		obj = new_object(OBJTYPE_CHAR);
 		if (!obj)
 			return NULL;
-		if (!strncmp(&buf[2], "newline", 7)) {
-			/* later */
-		} else if (!strncmp(&buf[2], "space", 5)) {
-			/* later */
+		if (!strncmp(&buf[2], "newline", 8 /* newline + null */)) {
+			obj->char_value = '\n';
+		} else if (!strncmp(&buf[2], "space", 6 /* space + null */)) {
+			obj->char_value = ' ';
 		} else if (buf[3] == '\0') {
 			obj->char_value = buf[2];
 		} else {
@@ -83,6 +83,16 @@ struct object *make_char(char *buf)
 		/* later */
 	}
 	return obj;
+}
+
+void print_char(const struct object *obj)
+{
+	if (obj->char_value == ' ')
+		printf("#\\space");
+	else if (obj->char_value == '\n')
+		printf("#\\newline");
+	else
+		printf("#\\%c", (char)obj->char_value);
 }
 
 struct object *eval(struct object *exp)
@@ -110,7 +120,7 @@ void print(struct object *obj)
 			printf("Error at handling boolean type\n");
 		break;
 	case OBJTYPE_CHAR:
-		printf("#\\%c", (char)obj->char_value);
+		print_char(obj);
 		break;
 	default:
 		fprintf(stderr, "Unknown type\n");
