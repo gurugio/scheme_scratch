@@ -37,15 +37,13 @@ struct object *new_object(enum obj_type type)
 	return obj;
 }
 
-struct object *make_fixnum(int negative, char *buf)
+struct object *make_fixnum(char *buf)
 {
 	struct object *obj = new_object(OBJTYPE_FIXNUM);
 	if (!obj)
 		return NULL;
 
 	obj->fixnum_value = strtol(buf, NULL, 10);
-	if (negative)
-		obj->fixnum_value = -obj->fixnum_value;
 	return obj;
 }
 
@@ -98,7 +96,6 @@ void eat_space(FILE *in)
 struct object *read(FILE *in)
 {
 	int ch;
-	int negative = 0;
 	char line_buf[MAX_LINE];
 	int line_index = 0;
 	int max = 0;
@@ -106,37 +103,25 @@ struct object *read(FILE *in)
 
 	eat_space(in);
 
-	ch = fgetc(in);
-	if (ch == '-')
-		negative = 1;
-	else
-		ungetc(ch, in);
-
 	do {
 		ch = fgetc(in);
 
-		if (isdigit(ch)) {
-			line_buf[line_index++] = (char)ch;
-			type = OBJTYPE_FIXNUM;
-		} else if (ch == ';') {
+		if (ch == ';') {
 			eat_line(in);
 			break;
 		} else if (ch == '\n') {
 			break;
-		} else {
-			/* something bad happens, clear input buffer */
-			eat_line(in);
-			type = OBJTYPE_MAX;
-			break;
 		}
-	} while (max++ < MAX_LINE);
 
+		line_buf[line_index++] = (char)ch;
+	} while (max++ < MAX_LINE);
 	line_buf[line_index] = 0;
 
-	if (type == OBJTYPE_FIXNUM)
-		return make_fixnum(negative, line_buf);
+	while (isspace(line_buf[--line_index])) {
+		line_buf[line_index] = 0;
+	}
 
-	return NULL;
+	return make_fixnum(line_buf);
 }
 
 int main(void)
