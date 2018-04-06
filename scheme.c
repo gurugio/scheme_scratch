@@ -14,6 +14,7 @@
 
 enum obj_type {
 	OBJTYPE_FIXNUM = 0x1,
+	OBJTYPE_BOOLEAN,
 	OBJTYPE_MAX,
 };
 
@@ -21,8 +22,13 @@ struct object {
 	enum obj_type type;
 	union {
 		long fixnum_value;
+		int bool_value;
 	};
 };
+
+
+struct object *true_singleton;
+struct object *false_singleton;
 
 
 struct object *new_object(enum obj_type type)
@@ -67,6 +73,14 @@ void print(struct object *obj)
 	case OBJTYPE_FIXNUM:
 		printf("%ld\n", obj->fixnum_value);
 		break;
+	case OBJTYPE_BOOLEAN:
+		if (obj->bool_value == 1)
+			printf("#t\n");
+		else if (obj->bool_value == 0)
+			printf("#f\n");
+		else
+			printf("Error at handling boolean type\n");
+		break;
 	default:
 		fprintf(stderr, "Unknown type\n");
 		break;
@@ -102,21 +116,24 @@ void eat_space(FILE *in)
 
 enum obj_type get_type(const char *token)
 {
-	if (token[0] == '#') {
-		if (token[1] == 't') {
-			/* return true singleton object */
-		} else if (token[1] == 'f') {
-			/* return false singleton object */
-		} else {
-			/* error */
-		}
-		return OBJTYPE_MAX;
+	if (token[0] == '#' &&
+	    (token[1] == 't' || token[1] == 'f')) {
+			return OBJTYPE_BOOLEAN;
 	} else if (token[0] == '-' || token[0] == '+' || isdigit(token[0])) {
 		/* fixnum */
 		return OBJTYPE_FIXNUM;
 	}
 	/* unknown type yet */
 	return OBJTYPE_MAX;
+}
+
+struct object *get_boolean(const char *token)
+{
+	if (token[0] == '#' && token[1] == 't')
+		return true_singleton;
+	else if (token[0] == '#' && token[1] == 'f')
+		return false_singleton;
+	return NULL;
 }
 
 struct object *read(FILE *in)
@@ -150,14 +167,26 @@ struct object *read(FILE *in)
 	switch (get_type(line_buf)) {
 	case OBJTYPE_FIXNUM:
 		return make_fixnum(line_buf);
+	case OBJTYPE_BOOLEAN:
+		return get_boolean(line_buf);
 	}
 
 	return NULL;
 }
 
+void model_layer_init(void)
+{
+	true_singleton = new_object(OBJTYPE_BOOLEAN);
+	true_singleton->bool_value = 1;
+	false_singleton = new_object(OBJTYPE_BOOLEAN);
+	false_singleton->bool_value = 0;
+}
+
 int main(void)
 {
 	printf("Start scheme repl\n");
+
+	model_layer_init();
 	
 	/* REPL */
 	while (1) {
