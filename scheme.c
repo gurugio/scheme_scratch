@@ -77,10 +77,11 @@ struct object *make_char(char *buf)
 			free(obj);
 			obj = NULL;
 		}
-	} else if (buf[2] == '\n') {
-		/* later */
-	} else if (buf[2] == ' ') {
-		/* later */
+	} else if (buf[2] == '\n' || buf[2] == ' ') {
+		obj = new_object(OBJTYPE_CHAR);
+		if (!obj)
+			return NULL;
+		obj->char_value = buf[2];
 	}
 	return obj;
 }
@@ -186,6 +187,7 @@ struct object *read(FILE *in)
 	int line_index = 0;
 	int max = 0;
 	enum obj_type type = OBJTYPE_MAX;
+	int escape = 0;
 
 	eat_space(in);
 
@@ -197,14 +199,30 @@ struct object *read(FILE *in)
 			break;
 		} else if (ch == '\n') {
 			break;
+		} else if (max == 0 && ch == '#') {
+			line_buf[line_index++] = (char)ch;
+			ch = fgetc(in);
+			line_buf[line_index++] = (char)ch;
+			if (ch == '\\') {
+				escape = 1;
+
+				/* Next character of '\' would be space or newline.
+				 * do not check and just store
+				 */
+				ch = fgetc(in);
+				line_buf[line_index++] = (char)ch;
+			}
+			continue;
 		}
 
 		line_buf[line_index++] = (char)ch;
 	} while (max++ < MAX_LINE);
 	line_buf[line_index] = 0;
 
-	while (isspace(line_buf[--line_index])) {
-		line_buf[line_index] = 0;
+	if (!escape) {
+		while (isspace(line_buf[--line_index])) {
+			line_buf[line_index] = 0;
+		}
 	}
 
 	switch (get_type(line_buf)) {
