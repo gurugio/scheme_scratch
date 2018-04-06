@@ -16,6 +16,7 @@ enum obj_type {
 	OBJTYPE_FIXNUM = 0x1,
 	OBJTYPE_BOOLEAN,
 	OBJTYPE_CHAR,
+	OBJTYPE_STRING,
 	OBJTYPE_MAX,
 };
 
@@ -25,6 +26,7 @@ struct object {
 		long fixnum_value;
 		int bool_value;
 		char char_value;
+		char *string_value;
 	};
 };
 
@@ -59,7 +61,7 @@ struct object *make_fixnum(char *buf)
 		return NULL;
 }
 
-struct object *make_char(char *buf)
+struct object *make_char(const char *buf)
 {
 	struct object *obj = NULL;
 	/* [0]='#', [1]='\' */
@@ -96,6 +98,51 @@ void print_char(const struct object *obj)
 		printf("#\\%c", (char)obj->char_value);
 }
 
+void read_string(FILE *in, char *line_buf, int *line_index)
+{
+	int max = 0;
+	int ch;
+	do {
+		ch = fgetc(in);
+		line_buf[*line_index] = (char)ch;
+		(*line_index)++;
+
+		if (ch == '\\') { /* escape-sequence */
+			ch = fgetc(in);
+			line_buf[*line_index] = (char)ch;
+			(*line_index)++;
+			continue;
+		} else if (ch == '"')
+			break;
+	} while (max++ < MAX_LINE);
+}
+
+struct object *make_string(const char *buf)
+{
+	struct object *obj = NULL;
+
+	obj = new_object(OBJTYPE_STRING);
+	if (!obj)
+		return NULL;
+
+	obj->string_value = calloc(strlen(buf) + 1, sizeof(char)); /* +1 for null */
+	strcpy(obj->string_value, buf);
+	return obj;
+}
+
+void print_string(struct object *obj)
+{
+	char *ptr = obj->string_value;
+
+	while (*ptr) {
+		if (*ptr == '\n')
+			printf("\\n");
+		else
+			printf("%c", *ptr);
+		ptr++;
+	}
+}
+
 struct object *eval(struct object *exp)
 {
 	return exp;
@@ -122,6 +169,9 @@ void print(struct object *obj)
 		break;
 	case OBJTYPE_CHAR:
 		print_char(obj);
+		break;
+	case OBJTYPE_STRING:
+		print_string(obj);
 		break;
 	default:
 		fprintf(stderr, "Unknown type\n");
@@ -166,6 +216,8 @@ enum obj_type get_type(const char *token)
 		return OBJTYPE_FIXNUM;
 	} else if (token[0] == '#' && token[1] == '\\') {
 		return OBJTYPE_CHAR;
+	} else if (token[0] == '"' && token[strlen(token) - 1] == '"') {
+		return OBJTYPE_STRING;
 	}
 	/* unknown type or not-implemented yet */
 	return OBJTYPE_MAX;
@@ -213,6 +265,10 @@ struct object *read(FILE *in)
 				line_buf[line_index++] = (char)ch;
 			}
 			continue;
+		} else if (ch == '"') {
+			line_buf[line_index++] = ch;
+			read_string(in, line_buf, &line_index);
+			break;
 		}
 
 		line_buf[line_index++] = (char)ch;
@@ -232,6 +288,10 @@ struct object *read(FILE *in)
 		return get_boolean(line_buf);
 	case OBJTYPE_CHAR:
 		return make_char(line_buf);
+	case OBJTYPE_STRING:
+		return make_string(line_buf);
+	case OBJTYPE_MAX:
+		fprintf(stderr, "Unknown type\n");
 	}
 
 	return NULL;
