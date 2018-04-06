@@ -157,13 +157,13 @@ void print(struct object *obj)
 
 	switch (obj->type) {
 	case OBJTYPE_FIXNUM:
-		printf("%ld\n", obj->fixnum_value);
+		printf("%ld", obj->fixnum_value);
 		break;
 	case OBJTYPE_BOOLEAN:
 		if (obj->bool_value == 1)
-			printf("#t\n");
+			printf("#t");
 		else if (obj->bool_value == 0)
-			printf("#f\n");
+			printf("#f");
 		else
 			printf("Error at handling boolean type\n");
 		break;
