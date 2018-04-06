@@ -39,12 +39,16 @@ struct object *new_object(enum obj_type type)
 
 struct object *make_fixnum(char *buf)
 {
+	char *endptr;
 	struct object *obj = new_object(OBJTYPE_FIXNUM);
 	if (!obj)
 		return NULL;
 
-	obj->fixnum_value = strtol(buf, NULL, 10);
-	return obj;
+	obj->fixnum_value = strtol(buf, &endptr, 10);
+	if (*endptr == '\0') /* entire string is valid */
+		return obj;
+	else
+		return NULL;
 }
 
 struct object *eval(struct object *exp)
@@ -54,7 +58,10 @@ struct object *eval(struct object *exp)
 
 void print(struct object *obj)
 {
-	if (!obj) return;
+	if (!obj) {
+		fprintf(stderr, "Failed to create object\n");
+		return;
+	}
 
 	switch (obj->type) {
 	case OBJTYPE_FIXNUM:
@@ -93,6 +100,25 @@ void eat_space(FILE *in)
 	return;
 }
 
+enum obj_type get_type(const char *token)
+{
+	if (token[0] == '#') {
+		if (token[1] == 't') {
+			/* return true singleton object */
+		} else if (token[1] == 'f') {
+			/* return false singleton object */
+		} else {
+			/* error */
+		}
+		return OBJTYPE_MAX;
+	} else if (token[0] == '-' || token[0] == '+' || isdigit(token[0])) {
+		/* fixnum */
+		return OBJTYPE_FIXNUM;
+	}
+	/* unknown type yet */
+	return OBJTYPE_MAX;
+}
+
 struct object *read(FILE *in)
 {
 	int ch;
@@ -121,7 +147,12 @@ struct object *read(FILE *in)
 		line_buf[line_index] = 0;
 	}
 
-	return make_fixnum(line_buf);
+	switch (get_type(line_buf)) {
+	case OBJTYPE_FIXNUM:
+		return make_fixnum(line_buf);
+	}
+
+	return NULL;
 }
 
 int main(void)
