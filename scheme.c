@@ -17,6 +17,7 @@ enum obj_type {
 	OBJTYPE_BOOLEAN,
 	OBJTYPE_CHAR,
 	OBJTYPE_STRING,
+	OBJTYPE_EMPTYLIST,
 	OBJTYPE_MAX,
 };
 
@@ -27,13 +28,14 @@ struct object {
 		int bool_value;
 		char char_value;
 		char *string_value;
+		char emptylist_value[3];
 	};
 };
 
 
 struct object *true_singleton;
 struct object *false_singleton;
-
+struct object *emptylist_singleton;
 
 struct object *new_object(enum obj_type type)
 {
@@ -143,6 +145,16 @@ void print_string(struct object *obj)
 	}
 }
 
+void print_emptylist(struct object *obj)
+{
+	printf("%s", obj->emptylist_value);
+}
+
+struct object *get_emptylist(void)
+{
+	return emptylist_singleton;
+}
+
 struct object *eval(struct object *exp)
 {
 	return exp;
@@ -173,8 +185,11 @@ void print(struct object *obj)
 	case OBJTYPE_STRING:
 		print_string(obj);
 		break;
+	case OBJTYPE_EMPTYLIST:
+		print_emptylist(obj);
+		break;
 	default:
-		fprintf(stderr, "Unknown type\n");
+		fprintf(stderr, "Cannot print the unknown type value\n");
 		break;
 	}
 }
@@ -208,6 +223,7 @@ void eat_space(FILE *in)
 
 enum obj_type get_type(const char *token)
 {
+	printf("token=%s\n", token);
 	if (token[0] == '#' &&
 	    (token[1] == 't' || token[1] == 'f')) {
 			return OBJTYPE_BOOLEAN;
@@ -218,8 +234,9 @@ enum obj_type get_type(const char *token)
 		return OBJTYPE_CHAR;
 	} else if (token[0] == '"' && token[strlen(token) - 1] == '"') {
 		return OBJTYPE_STRING;
+	} else if (token[0] == '(' && token[1] == ')') {
+		return OBJTYPE_EMPTYLIST;
 	}
-	/* unknown type or not-implemented yet */
 	return OBJTYPE_MAX;
 }
 
@@ -290,6 +307,8 @@ struct object *read(FILE *in)
 		return make_char(line_buf);
 	case OBJTYPE_STRING:
 		return make_string(line_buf);
+	case OBJTYPE_EMPTYLIST:
+		return get_emptylist();
 	case OBJTYPE_MAX:
 		fprintf(stderr, "Unknown type\n");
 	}
@@ -303,6 +322,8 @@ void model_layer_init(void)
 	true_singleton->bool_value = 1;
 	false_singleton = new_object(OBJTYPE_BOOLEAN);
 	false_singleton->bool_value = 0;
+	emptylist_singleton = new_object(OBJTYPE_EMPTYLIST);
+	strcpy(emptylist_singleton->emptylist_value, "()");
 }
 
 int main(void)
