@@ -49,7 +49,7 @@ struct object *new_object(enum obj_type type)
 	return obj;
 }
 
-struct object *make_fixnum(char *buf)
+struct object *make_fixnum(const char *buf)
 {
 	char *endptr;
 	struct object *obj = new_object(OBJTYPE_FIXNUM);
@@ -59,8 +59,9 @@ struct object *make_fixnum(char *buf)
 	obj->fixnum_value = strtol(buf, &endptr, 10);
 	if (*endptr == '\0') /* entire string is valid */
 		return obj;
-	else
-		return NULL;
+
+	free(obj);
+	return NULL;
 }
 
 struct object *make_char(const char *buf)
@@ -223,21 +224,21 @@ void eat_space(FILE *in)
 
 enum obj_type get_type(const char *token)
 {
-	printf("token=%s\n", token);
+	enum obj_type t = OBJTYPE_MAX;
+
 	if (token[0] == '#' &&
 	    (token[1] == 't' || token[1] == 'f')) {
-			return OBJTYPE_BOOLEAN;
+		t = OBJTYPE_BOOLEAN;
 	} else if (token[0] == '-' || token[0] == '+' || isdigit(token[0])) {
-		/* fixnum */
-		return OBJTYPE_FIXNUM;
+		t = OBJTYPE_FIXNUM;
 	} else if (token[0] == '#' && token[1] == '\\') {
-		return OBJTYPE_CHAR;
+		t = OBJTYPE_CHAR;
 	} else if (token[0] == '"' && token[strlen(token) - 1] == '"') {
-		return OBJTYPE_STRING;
+		t =  OBJTYPE_STRING;
 	} else if (token[0] == '(' && token[1] == ')') {
-		return OBJTYPE_EMPTYLIST;
+		t = OBJTYPE_EMPTYLIST;
 	}
-	return OBJTYPE_MAX;
+	return t;
 }
 
 struct object *get_boolean(const char *token)
@@ -249,6 +250,21 @@ struct object *get_boolean(const char *token)
 	return NULL;
 }
 
+int isdelimeter(int ch)
+{
+	return isspace(ch) || (ch == '\n');
+}
+
+/*
+ * read one expression from stdin
+ * A expression starts with '#', number, ", (
+ * and ends with space, newline, )
+ * boolean: #t, #f
+ * character: #\a
+ * integer: 123, -123
+ * string: "asdf"
+ * empty list: ()
+ */
 struct object *read(FILE *in)
 {
 	int ch;
@@ -266,37 +282,21 @@ struct object *read(FILE *in)
 		if (ch == ';') {
 			eat_line(in);
 			break;
-		} else if (ch == '\n') {
-			break;
-		} else if (max == 0 && ch == '#') {
+		} else if (ch == '\\') {
+			/* Next character of '\' would be space or newline.
+			 * do not check and just store
+			 */
 			line_buf[line_index++] = (char)ch;
 			ch = fgetc(in);
 			line_buf[line_index++] = (char)ch;
-			if (ch == '\\') {
-				escape = 1;
-
-				/* Next character of '\' would be space or newline.
-				 * do not check and just store
-				 */
-				ch = fgetc(in);
-				line_buf[line_index++] = (char)ch;
-			}
 			continue;
-		} else if (ch == '"') {
-			line_buf[line_index++] = ch;
-			read_string(in, line_buf, &line_index);
+		} else if (isdelimeter(ch)) {
 			break;
 		}
 
 		line_buf[line_index++] = (char)ch;
 	} while (max++ < MAX_LINE);
 	line_buf[line_index] = 0;
-
-	if (!escape) {
-		while (isspace(line_buf[--line_index])) {
-			line_buf[line_index] = 0;
-		}
-	}
 
 	switch (get_type(line_buf)) {
 	case OBJTYPE_FIXNUM:
