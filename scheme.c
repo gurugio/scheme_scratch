@@ -136,10 +136,27 @@ struct object *cons(struct object *car, struct object *cdr)
 
 void print_pair(struct object *obj)
 {
+	struct object *car, *cdr;
+
 	printf("(");
-	print(obj->pair.car);
-	printf(" ");
-	print(obj->pair.cdr);
+
+	do {
+		car = obj->pair.car;
+		print(car);
+
+		cdr = obj->pair.cdr;
+		if (cdr->type == OBJTYPE_PAIR) {
+			printf(" ");
+			obj = cdr;
+		} else if (cdr->type == OBJTYPE_EMPTYLIST) {
+			break;
+		} else {
+			printf(" . ");
+			print(cdr);
+			break;
+		}
+	} while (1);
+
 	printf(")");
 }
 
