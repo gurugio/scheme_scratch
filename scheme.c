@@ -18,6 +18,8 @@ enum obj_type {
 	OBJTYPE_CHAR,
 	OBJTYPE_STRING,
 	OBJTYPE_EMPTYLIST,
+	OBJTYPE_PAIR,
+	/* add new object-type here */
 	OBJTYPE_MAX,
 };
 
@@ -29,9 +31,15 @@ struct object {
 		char char_value;
 		char *string_value;
 		char emptylist_value[3];
+		struct _pair {
+			struct object *car;
+			struct object *cdr;
+		} pair;
 	};
 };
 
+void print(struct object *obj);
+struct object *read_pair(FILE *in);
 
 struct object *true_singleton;
 struct object *false_singleton;
@@ -114,6 +122,27 @@ struct object *make_string(const char *buf)
 	return obj;
 }
 
+struct object *cons(struct object *car, struct object *cdr)
+{
+	struct object *obj = NULL;
+	obj = new_object(OBJTYPE_PAIR);
+	if (!obj)
+		return NULL;
+
+	obj->pair.car = car;
+	obj->pair.cdr = cdr;
+	return obj;
+}
+
+void print_pair(struct object *obj)
+{
+	printf("(");
+	print(obj->pair.car);
+	printf(" ");
+	print(obj->pair.cdr);
+	printf(")");
+}
+
 void print_string(struct object *obj)
 {
 	char *ptr = obj->string_value;
@@ -169,6 +198,9 @@ void print(struct object *obj)
 		break;
 	case OBJTYPE_EMPTYLIST:
 		print_emptylist(obj);
+		break;
+	case OBJTYPE_PAIR:
+		print_pair(obj);
 		break;
 	default:
 		fprintf(stderr, "Cannot print the unknown type value\n");
@@ -233,7 +265,7 @@ struct object *get_boolean(const char *token)
 
 int isdelimeter(int ch)
 {
-	return isspace(ch) || (ch == '\n');
+	return isspace(ch) || (ch == '\n') || (ch == ')');
 }
 
 /*
@@ -272,7 +304,13 @@ struct object *read(FILE *in)
 			line_buf[line_index++] = (char)ch;
 			continue;
 		} else if (isdelimeter(ch)) {
+			if (ch == ')') {
+				/* ')' must be handled by read_pair() */
+				ungetc(ch, in);
+			}
 			break;
+		} else if (ch == '(') {
+			return read_pair(in);
 		}
 
 		line_buf[line_index++] = (char)ch;
@@ -291,9 +329,60 @@ struct object *read(FILE *in)
 	case OBJTYPE_EMPTYLIST:
 		return get_emptylist();
 	default:
-		fprintf(stderr, "Unknown type\n");
+		fprintf(stderr, "buf=[%s]\n", line_buf);
+		fprintf(stderr, "read() failed: Unknown type\n");
 	}
 
+	return NULL;
+}
+
+struct object *read_pair(FILE *in)
+{
+	int ch;
+	struct object *car;
+	struct object *cdr;
+
+	/* read the first */
+	eat_space(in);
+
+	ch = fgetc(in);
+	if (ch == ')')
+		return get_emptylist();
+	ungetc(ch, in);
+
+	car = read(in);
+	printf("read_pair:car=%d\n", car->type);
+
+	eat_space(in);
+	ch = fgetc(in);
+	if (ch == '.') { /* eg) (1 . 2) or (1 . (2 . 3)) */
+		ch = fgetc(in);
+		if (!isspace(ch)) {
+			fprintf(stderr, "dot must be followed by space\n");
+			/* BUGBUG: free car */
+			return NULL;
+		}
+
+		cdr = read(in);
+		printf("read_pair:cdr=%d\n", cdr->type);
+
+		ch = fgetc(in);
+		if (ch != ')') {
+			fprintf(stderr, "read_pair: pair must be ends with )\n");
+			goto parse_error;
+		}
+		return cons(car, cdr);
+	} else {
+		/* eg) (1 2) or (1 2 3 4)
+		 * The car is object and cdr is another list */
+		ungetc(ch, in);
+		cdr = read_pair(in);
+		return cons(car, cdr);
+	}
+parse_error:
+	fprintf(stderr, "Cannot identify this pair\n");
+	free(car);
+	free(cdr);
 	return NULL;
 }
 
