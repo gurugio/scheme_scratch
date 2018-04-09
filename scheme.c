@@ -101,25 +101,6 @@ void print_char(const struct object *obj)
 		printf("#\\%c", (char)obj->char_value);
 }
 
-void read_string(FILE *in, char *line_buf, int *line_index)
-{
-	int max = 0;
-	int ch;
-	do {
-		ch = fgetc(in);
-		line_buf[*line_index] = (char)ch;
-		(*line_index)++;
-
-		if (ch == '\\') { /* escape-sequence */
-			ch = fgetc(in);
-			line_buf[*line_index] = (char)ch;
-			(*line_index)++;
-			continue;
-		} else if (ch == '"')
-			break;
-	} while (max++ < MAX_LINE);
-}
-
 struct object *make_string(const char *buf)
 {
 	struct object *obj = NULL;
@@ -309,7 +290,7 @@ struct object *read(FILE *in)
 		return make_string(line_buf);
 	case OBJTYPE_EMPTYLIST:
 		return get_emptylist();
-	case OBJTYPE_MAX:
+	default:
 		fprintf(stderr, "Unknown type\n");
 	}
 
