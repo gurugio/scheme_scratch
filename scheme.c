@@ -368,7 +368,6 @@ struct object *read_pair(FILE *in)
 	ungetc(ch, in);
 
 	car = read(in);
-	printf("read_pair:car=%d\n", car->type);
 
 	eat_space(in);
 	ch = fgetc(in);
@@ -381,7 +380,6 @@ struct object *read_pair(FILE *in)
 		}
 
 		cdr = read(in);
-		printf("read_pair:cdr=%d\n", cdr->type);
 
 		ch = fgetc(in);
 		if (ch != ')') {
