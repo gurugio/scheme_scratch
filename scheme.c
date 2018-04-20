@@ -36,6 +36,7 @@ struct object {
 			struct object *cdr;
 		} pair;
 	};
+	void (*print)(const struct object *obj);
 };
 
 /* global objects */
@@ -54,6 +55,9 @@ struct object *make_fixnum(FILE *in);
 void print_fixnum(const struct object *obj);
 struct object *make_string(FILE *in);
 void print_string(const struct object *obj);
+
+void print_boolean(const struct object *obj);
+void print_emptylist(const struct object *obj);
 void print(struct object *obj);
 
 
@@ -71,6 +75,28 @@ struct object *new_object(enum obj_type type)
 
 	obj = calloc(1, sizeof(*obj));
 	obj->type = type;
+
+	switch (obj->type) {
+	case OBJTYPE_FIXNUM:
+		obj->print = print_fixnum;
+		break;
+	case OBJTYPE_BOOLEAN:
+		obj->print = print_boolean;
+		break;
+	case OBJTYPE_CHAR:
+		obj->print = print_char;
+		break;
+	case OBJTYPE_STRING:
+		obj->print = print_string;
+		break;
+	case OBJTYPE_EMPTYLIST:
+		obj->print = print_emptylist;
+		break;
+	case OBJTYPE_PAIR:
+		obj->print = print_pair;
+		break;
+	}
+
 	return obj;
 }
 
@@ -186,7 +212,6 @@ struct object *make_string(FILE *in)
 	return obj;
 }
 
-
 void print_char(const struct object *obj)
 {
 	if (obj->char_value == ' ')
@@ -205,7 +230,7 @@ void print_pair(const struct object *obj)
 
 	do {
 		car = obj->pair.car;
-		print(car);
+		print(car); /* recursive! */
 
 		cdr = obj->pair.cdr;
 		if (cdr->type == OBJTYPE_PAIR) {
@@ -215,7 +240,7 @@ void print_pair(const struct object *obj)
 			break;
 		} else {
 			printf(" . ");
-			print(cdr);
+			print(cdr); /* recursive! */
 			break;
 		}
 	} while (1);
@@ -273,29 +298,10 @@ void print(struct object *obj)
 		return;
 	}
 
-	switch (obj->type) {
-	case OBJTYPE_FIXNUM:
-		print_fixnum(obj);
-		break;
-	case OBJTYPE_BOOLEAN:
-		print_boolean(obj);
-		break;
-	case OBJTYPE_CHAR:
-		print_char(obj);
-		break;
-	case OBJTYPE_STRING:
-		print_string(obj);
-		break;
-	case OBJTYPE_EMPTYLIST:
-		print_emptylist(obj);
-		break;
-	case OBJTYPE_PAIR:
-		print_pair(obj);
-		break;
-	default:
-		fprintf(stderr, "Cannot print the unknown type value\n");
-		break;
-	}
+	if (obj->print)
+		obj->print(obj);
+	else
+		fprintf(stderr, "Cannot find print call-back, broken object?\n");
 }
 
 void eat_line(FILE *in)
