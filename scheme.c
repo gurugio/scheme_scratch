@@ -10,7 +10,7 @@
 #include <stdlib.h>
 
 #define MAX_LINE 128
-
+#define MAX_TOKEN 64
 
 enum obj_type {
 	OBJTYPE_FIXNUM = 0x1,
@@ -38,12 +38,29 @@ struct object {
 	};
 };
 
-void print(struct object *obj);
-struct object *read_pair(FILE *in);
-
+/* global objects */
 struct object *true_singleton;
 struct object *false_singleton;
 struct object *emptylist_singleton;
+
+/*
+ * handlers of each type
+ */
+struct object *make_pair(FILE *in);
+void print_pair(const struct object *obj);
+struct object *make_char(FILE *in);
+void print_char(const struct object *obj);
+struct object *make_fixnum(FILE *in);
+void print_fixnum(const struct object *obj);
+struct object *make_string(FILE *in);
+void print_string(const struct object *obj);
+void print(struct object *obj);
+
+
+int isdelimeter(int ch)
+{
+	return isspace(ch) || (ch == '\n') || (ch == ')') || (ch == ';');
+}
 
 struct object *new_object(enum obj_type type)
 {
@@ -57,47 +74,118 @@ struct object *new_object(enum obj_type type)
 	return obj;
 }
 
-struct object *make_fixnum(const char *buf)
+struct object *make_char(FILE *in)
 {
-	char *endptr;
-	struct object *obj = new_object(OBJTYPE_FIXNUM);
+	struct object *obj = new_object(OBJTYPE_CHAR);
 	if (!obj)
 		return NULL;
+	int ch = fgetc(in);
+	int next_ch;
+
+	/* [0]='#', [1]='\' */
+	if (isalpha(ch)) {
+		next_ch = fgetc(in);
+		if (isdelimeter(next_ch)) {
+			ungetc(next_ch, in);
+			obj->char_value = ch;
+		} else if (ch == 'n' && next_ch == 'e') {
+			char buf[6];
+			int i;
+			for (i = 0; i < 6; i++)
+				buf[i] = fgetc(in);
+			if (buf[0] == 'w' && buf[1] == 'l'
+			    && buf[2] == 'i' && buf[3] == 'n'
+			    && buf[4] == 'e' && isdelimeter(buf[5]))
+				obj->char_value = '\n';
+			else
+				goto input_error;
+		} else if (ch == 's' && next_ch == 'p') {
+			char buf[4];
+			int i;
+			for (i = 0; i < 4; i++)
+				buf[i] = fgetc(in);
+			if (buf[0] == 'a' && buf[1] == 'c'
+			    && buf[2] == 'e' && isdelimeter(buf[3]))
+				obj->char_value = ' ';
+			else
+				goto input_error;
+		} else
+			goto input_error;
+	} else if (ch == '\n' || ch == ' ') {
+		obj->char_value = ch;
+	} else {
+		goto input_error;
+	}
+
+	return obj;
+input_error:
+	free(obj);
+	return NULL;
+}
+
+struct object *make_fixnum(FILE *in)
+{
+	char *endptr;
+	struct object *obj;
+	int ch;
+	int buf_index = 0;
+	char *buf = calloc(MAX_TOKEN, sizeof(char));
+	if (!buf)
+		return NULL;
+
+	do {
+		ch = fgetc(in);
+		if (isdelimeter(ch)) {
+			ungetc(ch, in);
+			break;
+		}
+		buf[buf_index++] = (char)ch;
+	} while (buf_index < MAX_TOKEN);
+	
+	obj = new_object(OBJTYPE_FIXNUM);
+	if (!obj) {
+		free(buf);
+		return NULL;
+	}
 
 	obj->fixnum_value = strtol(buf, &endptr, 10);
 	if (*endptr == '\0') /* entire string is valid */
 		return obj;
 
 	free(obj);
+	free(buf);
 	return NULL;
 }
 
-struct object *make_char(const char *buf)
+struct object *make_string(FILE *in)
 {
 	struct object *obj = NULL;
-	/* [0]='#', [1]='\' */
-	if (isalpha(buf[2])) {
-		obj = new_object(OBJTYPE_CHAR);
-		if (!obj)
-			return NULL;
-		if (!strncmp(&buf[2], "newline", 8 /* newline + null */)) {
-			obj->char_value = '\n';
-		} else if (!strncmp(&buf[2], "space", 6 /* space + null */)) {
-			obj->char_value = ' ';
-		} else if (buf[3] == '\0') {
-			obj->char_value = buf[2];
-		} else {
-			free(obj);
-			obj = NULL;
-		}
-	} else if (buf[2] == '\n' || buf[2] == ' ') {
-		obj = new_object(OBJTYPE_CHAR);
-		if (!obj)
-			return NULL;
-		obj->char_value = buf[2];
+	int ch;
+	int buf_index = 0;
+	char *buf = calloc(MAX_TOKEN, sizeof(char));
+	if (!buf)
+		return NULL;
+
+	do {
+		ch = fgetc(in);
+		/* read everything until '"', ignore (, ; and anything */
+		if (ch == '"')
+			break;
+		buf[buf_index++] = (char)ch;
+	} while (buf_index < MAX_TOKEN);
+
+	obj = new_object(OBJTYPE_STRING);
+	if (!obj) {
+		free(buf);
+		return NULL;
 	}
+
+	obj->string_value = calloc(strlen(buf) + 1, sizeof(char)); /* +1 for null */
+	/* BUGBUG: no error handling */
+	strcpy(obj->string_value, buf);
 	return obj;
 }
+
 
 void print_char(const struct object *obj)
 {
@@ -109,32 +197,7 @@ void print_char(const struct object *obj)
 		printf("#\\%c", (char)obj->char_value);
 }
 
-struct object *make_string(const char *buf)
-{
-	struct object *obj = NULL;
-
-	obj = new_object(OBJTYPE_STRING);
-	if (!obj)
-		return NULL;
-
-	obj->string_value = calloc(strlen(buf) + 1, sizeof(char)); /* +1 for null */
-	strcpy(obj->string_value, buf);
-	return obj;
-}
-
-struct object *cons(struct object *car, struct object *cdr)
-{
-	struct object *obj = NULL;
-	obj = new_object(OBJTYPE_PAIR);
-	if (!obj)
-		return NULL;
-
-	obj->pair.car = car;
-	obj->pair.cdr = cdr;
-	return obj;
-}
-
-void print_pair(struct object *obj)
+void print_pair(const struct object *obj)
 {
 	struct object *car, *cdr;
 
@@ -160,7 +223,7 @@ void print_pair(struct object *obj)
 	printf(")");
 }
 
-void print_string(struct object *obj)
+void print_string(const struct object *obj)
 {
 	char *ptr = obj->string_value;
 
@@ -173,7 +236,7 @@ void print_string(struct object *obj)
 	}
 }
 
-void print_emptylist(struct object *obj)
+void print_emptylist(const struct object *obj)
 {
 	printf("%s", obj->emptylist_value);
 }
@@ -280,11 +343,6 @@ struct object *get_boolean(const char *token)
 	return NULL;
 }
 
-int isdelimeter(int ch)
-{
-	return isspace(ch) || (ch == '\n') || (ch == ')');
-}
-
 /*
  * read one expression from stdin
  * A expression starts with '#', number, ", (
@@ -306,54 +364,45 @@ struct object *read(FILE *in)
 
 	eat_space(in);
 
-	do {
+	ch = fgetc(in);
+
+	if (ch == '(') {
+		return make_pair(in);
+	} else if (ch == '#') {
+		/* char or boolean */
 		ch = fgetc(in);
-
-		if (ch == ';') {
-			eat_line(in);
-			break;
-		} else if (ch == '\\') {
-			/* Next character of '\' would be space or newline.
-			 * do not check and just store
-			 */
-			line_buf[line_index++] = (char)ch;
-			ch = fgetc(in);
-			line_buf[line_index++] = (char)ch;
-			continue;
-		} else if (isdelimeter(ch)) {
-			if (ch == ')') {
-				/* ')' must be handled by read_pair() */
-				ungetc(ch, in);
-			}
-			break;
-		} else if (ch == '(') {
-			return read_pair(in);
-		}
-
-		line_buf[line_index++] = (char)ch;
-	} while (max++ < MAX_LINE);
-	line_buf[line_index] = 0;
-
-	switch (get_type(line_buf)) {
-	case OBJTYPE_FIXNUM:
-		return make_fixnum(line_buf);
-	case OBJTYPE_BOOLEAN:
-		return get_boolean(line_buf);
-	case OBJTYPE_CHAR:
-		return make_char(line_buf);
-	case OBJTYPE_STRING:
-		return make_string(line_buf);
-	case OBJTYPE_EMPTYLIST:
-		return get_emptylist();
-	default:
-		fprintf(stderr, "buf=[%s]\n", line_buf);
-		fprintf(stderr, "read() failed: Unknown type\n");
-	}
-
+		if (ch == 't')
+			return true_singleton;
+		else if (ch == 'f')
+			return false_singleton;
+		else if (ch == '\\')
+			return make_char(in);
+	} else if (ch == '-' || ch == '+' || isdigit(ch)) {
+		/* fixnum */
+		ungetc(ch, in);
+		return make_fixnum(in);
+	} else if (ch == '"') {
+		/* string */
+		return make_string(in);
+	} else
+		fprintf(stdout, "Cannot identify input\n");
+	/* error */
 	return NULL;
 }
 
-struct object *read_pair(FILE *in)
+struct object *cons(struct object *car, struct object *cdr)
+{
+	struct object *obj = NULL;
+	obj = new_object(OBJTYPE_PAIR);
+	if (!obj)
+		return NULL;
+
+	obj->pair.car = car;
+	obj->pair.cdr = cdr;
+	return obj;
+}
+
+struct object *make_pair(FILE *in)
 {
 	int ch;
 	struct object *car;
@@ -383,7 +432,7 @@ struct object *read_pair(FILE *in)
 
 		ch = fgetc(in);
 		if (ch != ')') {
-			fprintf(stderr, "read_pair: pair must be ends with )\n");
+			fprintf(stderr, "make_pair: pair must be ends with )\n");
 			goto parse_error;
 		}
 		return cons(car, cdr);
@@ -391,7 +440,7 @@ struct object *read_pair(FILE *in)
 		/* eg) (1 2) or (1 2 3 4)
 		 * The car is object and cdr is another list */
 		ungetc(ch, in);
-		cdr = read_pair(in);
+		cdr = make_pair(in);
 		return cons(car, cdr);
 	}
 parse_error:
