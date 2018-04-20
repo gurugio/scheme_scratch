@@ -241,6 +241,21 @@ void print_emptylist(const struct object *obj)
 	printf("%s", obj->emptylist_value);
 }
 
+void print_boolean(const struct object *obj)
+{
+	if (obj->bool_value == 1)
+		printf("#t");
+	else if (obj->bool_value == 0)
+		printf("#f");
+	else
+		printf("Error at handling boolean type\n");
+}
+
+void print_fixnum(const struct object *obj)
+{
+	printf("%ld", obj->fixnum_value);
+}
+
 struct object *get_emptylist(void)
 {
 	return emptylist_singleton;
@@ -260,15 +275,10 @@ void print(struct object *obj)
 
 	switch (obj->type) {
 	case OBJTYPE_FIXNUM:
-		printf("%ld", obj->fixnum_value);
+		print_fixnum(obj);
 		break;
 	case OBJTYPE_BOOLEAN:
-		if (obj->bool_value == 1)
-			printf("#t");
-		else if (obj->bool_value == 0)
-			printf("#f");
-		else
-			printf("Error at handling boolean type\n");
+		print_boolean(obj);
 		break;
 	case OBJTYPE_CHAR:
 		print_char(obj);
@@ -313,25 +323,6 @@ void eat_space(FILE *in)
 		break;
 	} while (max++ < MAX_LINE);
 	return;
-}
-
-enum obj_type get_type(const char *token)
-{
-	enum obj_type t = OBJTYPE_MAX;
-
-	if (token[0] == '#' &&
-	    (token[1] == 't' || token[1] == 'f')) {
-		t = OBJTYPE_BOOLEAN;
-	} else if (token[0] == '-' || token[0] == '+' || isdigit(token[0])) {
-		t = OBJTYPE_FIXNUM;
-	} else if (token[0] == '#' && token[1] == '\\') {
-		t = OBJTYPE_CHAR;
-	} else if (token[0] == '"' && token[strlen(token) - 1] == '"') {
-		t =  OBJTYPE_STRING;
-	} else if (token[0] == '(' && token[1] == ')') {
-		t = OBJTYPE_EMPTYLIST;
-	}
-	return t;
 }
 
 struct object *get_boolean(const char *token)
