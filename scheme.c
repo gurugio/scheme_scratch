@@ -234,8 +234,7 @@ struct object *make_string(FILE *in)
 		return NULL;
 	}
 
-	obj->string_value = calloc(strlen(buf) + 1, sizeof(char)); /* +1 for null */
-	/* BUGBUG: no error handling */
+	obj->string_value = buf;
 	strcpy(obj->string_value, buf);
 	return obj;
 }
