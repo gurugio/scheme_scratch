@@ -128,6 +128,16 @@ struct object *cons(struct object *car, struct object *cdr)
 	return obj;
 }
 
+struct object *cdr(struct object *obj)
+{
+	return obj->pair.cdr;
+}
+
+struct object *car(struct object *obj)
+{
+	return obj->pair.car;
+}
+
 struct object *make_char(FILE *in)
 {
 	struct object *obj = new_object(OBJTYPE_CHAR);
@@ -313,6 +323,32 @@ struct object *get_emptylist(void)
 	return emptylist_singleton;
 }
 
+struct object *find_symbol(struct object *obj, const char *buf)
+{
+	if (!obj)
+		return NULL;
+
+	if (obj->type != OBJTYPE_PAIR) {
+		fprintf(stderr, "Symbol list is broken\n");
+		return NULL;
+	}
+
+	if (!strcmp(obj->pair.car->symbol_value, buf))
+		return obj;
+
+	return find_symbol(cdr(obj), buf);
+}
+
+void print_all_symbol(struct object *obj)
+{
+	if (!obj) return;
+	if (obj->type != OBJTYPE_PAIR) {
+		fprintf(stderr, "Symbol list is broken\n");
+		return;
+	}
+	print_all_symbol(cdr(obj));
+}
+
 struct object *make_symbol(FILE *in)
 {
 	struct object *obj;
@@ -331,6 +367,13 @@ struct object *make_symbol(FILE *in)
 		buf[buf_index++] = (char)ch;
 	} while (buf_index < MAX_TOKEN);
 
+	obj = find_symbol(symbol_header, buf);
+	if (obj) {
+		free(buf);
+		/* find_symbol() returns a pair object */
+		return obj->pair.car;
+	}
+
 	obj = new_object(OBJTYPE_SYMBOL);
 	if (!obj) {
 		free(buf);
@@ -338,6 +381,7 @@ struct object *make_symbol(FILE *in)
 	}
 
 	obj->symbol_value = buf;
+	symbol_header = cons(obj, symbol_header);
 	return obj;
 }
 
