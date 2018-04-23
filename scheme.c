@@ -19,6 +19,7 @@ enum obj_type {
 	OBJTYPE_STRING,
 	OBJTYPE_EMPTYLIST,
 	OBJTYPE_PAIR,
+	OBJTYPE_SYMBOL,
 	/* add new object-type here */
 	OBJTYPE_MAX,
 };
@@ -31,6 +32,7 @@ struct object {
 		char char_value;
 		char *string_value;
 		char emptylist_value[3];
+		char *symbol_value;
 		struct _pair {
 			struct object *car;
 			struct object *cdr;
@@ -44,6 +46,10 @@ struct object *true_singleton;
 struct object *false_singleton;
 struct object *emptylist_singleton;
 
+/* symbol list */
+struct object *symbol_header;
+
+
 /*
  * handlers of each type
  */
@@ -55,6 +61,8 @@ struct object *make_fixnum(FILE *in);
 void print_fixnum(const struct object *obj);
 struct object *make_string(FILE *in);
 void print_string(const struct object *obj);
+struct object *make_symbol(FILE *in);
+void print_symbol(const struct object *obj);
 
 void print_boolean(const struct object *obj);
 void print_emptylist(const struct object *obj);
@@ -64,6 +72,11 @@ void print(struct object *obj);
 int isdelimeter(int ch)
 {
 	return isspace(ch) || (ch == '\n') || (ch == ')') || (ch == ';');
+}
+
+int issymbol(int ch)
+{
+	return isalpha(ch) || (ch == '_');
 }
 
 struct object *new_object(enum obj_type type)
@@ -95,8 +108,23 @@ struct object *new_object(enum obj_type type)
 	case OBJTYPE_PAIR:
 		obj->print = print_pair;
 		break;
+	case OBJTYPE_SYMBOL:
+		obj->print = print_symbol;
+		break;
 	}
 
+	return obj;
+}
+
+struct object *cons(struct object *car, struct object *cdr)
+{
+	struct object *obj = NULL;
+	obj = new_object(OBJTYPE_PAIR);
+	if (!obj)
+		return NULL;
+
+	obj->pair.car = car;
+	obj->pair.cdr = cdr;
 	return obj;
 }
 
@@ -286,6 +314,39 @@ struct object *get_emptylist(void)
 	return emptylist_singleton;
 }
 
+struct object *make_symbol(FILE *in)
+{
+	struct object *obj;
+	int ch;
+	int buf_index = 0;
+	char *buf = calloc(MAX_TOKEN, sizeof(char));
+	if (!buf)
+		return NULL;
+
+	do {
+		ch = fgetc(in);
+		if (isdelimeter(ch) || !issymbol(ch)) {
+			ungetc(ch, in);
+			break;
+		}
+		buf[buf_index++] = (char)ch;
+	} while (buf_index < MAX_TOKEN);
+
+	obj = new_object(OBJTYPE_SYMBOL);
+	if (!obj) {
+		free(buf);
+		return NULL;
+	}
+
+	obj->symbol_value = buf;
+	return obj;
+}
+
+void print_symbol(const struct object *obj)
+{
+	printf("%s", obj->symbol_value);
+}
+
 struct object *eval(struct object *exp)
 {
 	return exp;
@@ -381,22 +442,13 @@ struct object *read(FILE *in)
 	} else if (ch == '"') {
 		/* string */
 		return make_string(in);
+	} else if (issymbol(ch)) {
+		ungetc(ch, in);
+		return make_symbol(in);
 	} else
 		fprintf(stdout, "Cannot identify input\n");
 	/* error */
 	return NULL;
-}
-
-struct object *cons(struct object *car, struct object *cdr)
-{
-	struct object *obj = NULL;
-	obj = new_object(OBJTYPE_PAIR);
-	if (!obj)
-		return NULL;
-
-	obj->pair.car = car;
-	obj->pair.cdr = cdr;
-	return obj;
 }
 
 struct object *make_pair(FILE *in)
