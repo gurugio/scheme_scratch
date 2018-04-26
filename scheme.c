@@ -402,7 +402,12 @@ void print(struct object *obj)
 		return;
 	}
 
-	if (obj->print)
+	if (obj->type == OBJTYPE_PAIR
+	    && car(obj)->type == OBJTYPE_SYMBOL
+	    && !strcmp(car(obj)->symbol_value, "quote")) {
+		/* If (quote (1 2 3)), (cadr (quote (1 2 3))) => (1 2 3) */
+		print(car(cdr(obj)));
+	} else if (obj->print)
 		obj->print(obj);
 	else
 		fprintf(stderr, "Cannot find print call-back, broken object?\n");
@@ -488,6 +493,9 @@ struct object *read(FILE *in)
 	} else if (issymbol(ch)) {
 		ungetc(ch, in);
 		return make_symbol(in);
+	} else if (ch == '\'') {
+		/* just ignore? */
+		return read(in);
 	} else
 		fprintf(stdout, "Cannot identify input\n");
 	/* error */
