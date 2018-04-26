@@ -289,6 +289,7 @@ void print_string(const struct object *obj)
 {
 	char *ptr = obj->string_value;
 
+	printf("\"");
 	while (*ptr) {
 		if (*ptr == '\n')
 			printf("\\n");
@@ -296,6 +297,7 @@ void print_string(const struct object *obj)
 			printf("%c", *ptr);
 		ptr++;
 	}
+	printf("\"");
 }
 
 void print_emptylist(const struct object *obj)
